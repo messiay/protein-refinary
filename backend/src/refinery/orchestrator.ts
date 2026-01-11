@@ -53,18 +53,21 @@ export class Orchestrator extends EventEmitter {
         this.addToPareto(this.currentParent);
     }
 
-    public setInitialProtein(sequence: string, pdbPath: string) {
+    public async setInitialProtein(sequence: string, pdbPath: string) {
         // In a real app, we'd calculate initial affinity/stability here
+        this.emit('log', `🔬 Validating Initial Protein: ${sequence.slice(0, 10)}...`);
+        const { stability, affinity, pdbPath: validatedPath } = await this.validator.validate(sequence, pdbPath, "initial");
+
         this.currentParent = {
             sequence: sequence,
-            affinity: -5.0, // Placeholder
-            stability: -5.0, // Placeholder
+            affinity: affinity,
+            stability: stability,
             id: 'CUSTOM_PARENT'
         };
         this.paretoFrontier = []; // Reset frontier
         this.stagnationCount = 0;
         this.addToPareto(this.currentParent);
-        this.emit('log', `✅ Custom Protein Loaded: ${sequence.slice(0, 10)}...`);
+        this.emit('log', `✅ Baseline Set: Affinity ${affinity.toFixed(2)} | Stability ${stability.toFixed(2)}`);
         this.emit('new_candidate', { ...this.currentParent, generation: 0, novelty_status: 'WILD_TYPE' });
     }
 
