@@ -12,10 +12,12 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/uuid": "^10.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "sqlite3": "^5.1.7",
+    "uuid": "^13.0.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {

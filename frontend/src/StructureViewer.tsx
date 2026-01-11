@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 
-// We import the window object essentially or use a script tag
-// But since we installed '3dmol', let's see how to use it.
-// Actually, 3Dmol is often best used via a script tag or the GLViewer constructor if available.
-// For simplicity in React without a heavy wrapper, we can rely on window.$3Dmol or import it.
-import * as $3Dmol from '3dmol/build/3Dmol.js';
+// Use global from CDN
+declare global {
+    interface Window {
+        $3Dmol: any;
+    }
+}
 
 interface Props {
     pdbId: string; // We'll pass the ID, and fetch the PDB content
@@ -15,13 +16,18 @@ export const StructureViewer: React.FC<Props> = ({ pdbId }) => {
     const glRef = useRef<any>(null);
 
     useEffect(() => {
-        if (!viewerRef.current) return;
+        if (!viewerRef.current || !window.$3Dmol) return;
 
         // Initialize viewer if not exists
         if (!glRef.current) {
             const element = viewerRef.current;
             const config = { backgroundColor: '#14141e' };
-            glRef.current = $3Dmol.createViewer(element, config);
+            try {
+                glRef.current = window.$3Dmol.createViewer(element, config);
+            } catch (e) {
+                console.error("3Dmol Init Error", e);
+                return;
+            }
         }
 
         const viewer = glRef.current;

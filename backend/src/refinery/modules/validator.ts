@@ -1,10 +1,9 @@
-export class Validator {
-    // Mock FoldX & Vina
-    // Returns [stability, affinity]
-    // Stability: Lower is better (negative)
-    // Affinity: Lower is better (negative)
+import { IValidator, ValidationResult } from '../../interfaces';
 
-    public async validate(sequence: string): Promise<{ stability: number, affinity: number }> {
+export class Validator implements IValidator {
+    // Mock FoldX & Vina
+
+    public async validate(sequence: string, parentPdb?: string, id?: string): Promise<ValidationResult> {
         // Simulate processing time
         await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -25,7 +24,8 @@ export class Validator {
 
         return {
             stability: parseFloat(stability.toFixed(2)),
-            affinity: parseFloat(affinity.toFixed(2))
+            affinity: parseFloat(affinity.toFixed(2)),
+            pdbPath: 'mock.pdb' // Placeholder
         };
     }
 }

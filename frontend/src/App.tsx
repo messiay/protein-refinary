@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, Zap, Dna, Play, Square, Box, BarChart2 } from 'lucide-react';
+import { Activity, Zap, Dna, Play, Square, Box, BarChart2, Upload } from 'lucide-react';
 import { StructureViewer } from './StructureViewer';
 import { ParetoChart } from './ParetoChart';
 
@@ -91,13 +91,42 @@ function App() {
   };
 
   const handleStart = async () => {
-    await fetch(`${API_URL}/start`, { method: 'POST' });
-    setIsRunning(true);
+    try {
+      const res = await fetch(`${API_URL}/start`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to start');
+      setIsRunning(true);
+      addLog('Started Evolution Protocol', 'info');
+    } catch (e) {
+      console.error(e);
+      addLog('Error starting evolution. Check console.', 'info');
+    }
   };
 
   const handleStop = async () => {
     await fetch(`${API_URL}/stop`, { method: 'POST' });
     setIsRunning(false);
+    addLog('Stopped Evolution Protocol', 'info');
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const text = await file.text();
+    try {
+      const res = await fetch(`${API_URL}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdb: text })
+      });
+      if (res.ok) {
+        addLog(`Uploaded ${file.name} successfully`, 'success');
+      } else {
+        addLog('Upload failed', 'info');
+      }
+    } catch (e) {
+      addLog('Upload error', 'info');
+    }
   };
 
   return (
@@ -107,7 +136,11 @@ function App() {
           <h1 className="title">Protein Refinery</h1>
           <div style={{ color: 'var(--text-muted)' }}>Autonomous Evolutionary Architect</div>
         </div>
-        <div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <label className="btn" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <Upload size={16} style={{ marginRight: 8 }} /> Load PDB
+            <input type="file" onChange={handleFileUpload} style={{ display: 'none' }} accept=".pdb" />
+          </label>
           {!isRunning ? (
             <button className="btn" onClick={handleStart}><Play size={16} style={{ marginRight: 8 }} /> Start Evolution</button>
           ) : (
@@ -120,7 +153,7 @@ function App() {
       <div className="grid-cols-3">
         <div className="glass-panel stat-card">
           <div className="stat-label"><Dna size={16} /> Best Affinity</div>
-          <div className="stat-value">{stats.bestAffinity.toFixed(2)} <span style={{ fontSize: '1rem' }}>kcal/mol</span></div>
+          <div className="stat-value">{(stats.bestAffinity ?? 0).toFixed(2)} <span style={{ fontSize: '1rem' }}>kcal/mol</span></div>
         </div>
         <div className="glass-panel stat-card">
           <div className="stat-label"><Activity size={16} /> Generation</div>
@@ -178,10 +211,10 @@ function App() {
                   {candidates.map(c => (
                     <tr key={c.id}>
                       <td style={{ fontFamily: 'monospace' }}>{c.id.split('-')[1]}...</td>
-                      <td style={{ color: c.binding_affinity < -6 ? 'var(--success)' : 'inherit' }}>
-                        {c.binding_affinity.toFixed(2)}
+                      <td style={{ color: (c.binding_affinity ?? 0) < -6 ? 'var(--success)' : 'inherit' }}>
+                        {(c.binding_affinity ?? 0).toFixed(2)}
                       </td>
-                      <td>{c.stability_score.toFixed(2)}</td>
+                      <td>{(c.stability_score ?? 0).toFixed(2)}</td>
                       <td>
                         <span style={{
                           padding: '2px 6px',
@@ -209,7 +242,7 @@ function App() {
             <h3 style={{ margin: '0 0 1rem 0' }}>System Logs</h3>
             <div className="log-viewer" style={{ height: '200px' }}>
               {logs.map((log, i) => (
-                <div key={i} className={`log-entry ${log.message.includes('LEAP') ? 'highlight' : ''}`}>
+                <div key={i} className={`log-entry ${log.message && log.message.includes('LEAP') ? 'highlight' : ''}`}>
                   <span style={{ opacity: 0.5, marginRight: 10 }}>[{log.timestamp}]</span>
                   {log.message}
                 </div>

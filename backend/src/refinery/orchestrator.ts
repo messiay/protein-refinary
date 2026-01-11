@@ -1,9 +1,12 @@
 import { Designer } from './modules/designer';
 import { Validator } from './modules/validator';
+import { RealValidator } from './modules/validator_real';
 import { Gatekeeper } from './modules/gatekeeper';
 import { db } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 import EventEmitter from 'events';
+import { CONFIG } from '../config';
+import { IValidator, IDesigner } from '../interfaces';
 
 interface Protein {
     id?: string;
@@ -13,8 +16,8 @@ interface Protein {
 }
 
 export class Orchestrator extends EventEmitter {
-    private designer: Designer;
-    private validator: Validator;
+    private designer: Designer; // TODO: Interface
+    private validator: IValidator;
     private gatekeeper: Gatekeeper;
 
     private currentParent: Protein;
@@ -22,14 +25,23 @@ export class Orchestrator extends EventEmitter {
     private generation: number = 0;
 
     // Phase 4: Advanced Evolution
-    private stagnationCount: number = 0;
+    private stagnationCount: number = 0; // Stagnation Counter
     private paretoFrontier: Protein[] = [];
     private readonly STAGNATION_THRESHOLD = 3;
 
     constructor() {
         super();
-        this.designer = new Designer();
-        this.validator = new Validator();
+        this.designer = new Designer(); // TODO: RealDesigner (Future)
+
+        // FACTORY PATTERN: Choose Validator based on Config
+        if (CONFIG.MODE === 'REAL') {
+            console.log("⚠️ REFINERY STARTING IN REAL SCIENCE MODE");
+            this.validator = new RealValidator();
+        } else {
+            console.log("ℹ️ Refinery starting in Simulation Mode");
+            this.validator = new Validator();
+        }
+
         this.gatekeeper = new Gatekeeper();
 
         // Initial Wild Type
@@ -41,11 +53,28 @@ export class Orchestrator extends EventEmitter {
         this.addToPareto(this.currentParent);
     }
 
+    public setInitialProtein(sequence: string, pdbPath: string) {
+        // In a real app, we'd calculate initial affinity/stability here
+        this.currentParent = {
+            sequence: sequence,
+            affinity: -5.0, // Placeholder
+            stability: -5.0, // Placeholder
+            id: 'CUSTOM_PARENT'
+        };
+        this.paretoFrontier = []; // Reset frontier
+        this.stagnationCount = 0;
+        this.addToPareto(this.currentParent);
+        this.emit('log', `✅ Custom Protein Loaded: ${sequence.slice(0, 10)}...`);
+        this.emit('new_candidate', { ...this.currentParent, generation: 0, novelty_status: 'WILD_TYPE' });
+    }
+
     private addToPareto(protein: Protein) {
         // Simple Pareto Logic: Keep if no other protein is better in BOTH dimensions
         // In a real system, we'd prune the list. 
         // For visualization, we'll just keep adding good ones.
         this.paretoFrontier.push(protein);
+        // Only keep last 200 for UI performance
+        if (this.paretoFrontier.length > 200) this.paretoFrontier.shift();
         this.emit('pareto_update', this.paretoFrontier);
     }
 
@@ -61,7 +90,7 @@ export class Orchestrator extends EventEmitter {
             this.emit('log', `\n=== GENERATION ${this.generation} ===`);
             this.emit('log', `Parent Affinity: ${this.currentParent.affinity.toFixed(2)} | Stability: ${this.currentParent.stability.toFixed(2)}`);
 
-            // Check Stagnation
+            // Check Stagnation (Cached in Stagnation Counter)
             let mutationRate = 1;
             if (this.stagnationCount >= this.STAGNATION_THRESHOLD) {
                 this.emit('log', `⚠️ Stagnation Detected (${this.stagnationCount} gens). Triggering MUTATION JUMP! 🚀`);
@@ -78,9 +107,10 @@ export class Orchestrator extends EventEmitter {
             // 2. Validate & Bank
             for (const seq of candidates) {
                 const { isNovel, status } = this.gatekeeper.checkNovelty(seq);
-                const { stability, affinity } = await this.validator.validate(seq);
 
+                // Pass parentPDB and current ID to validate
                 const id = `SYN-${uuidv4().slice(0, 8)}`;
+                const { stability, affinity, pdbPath } = await this.validator.validate(seq, 'parent.pdb', id);
 
                 const proteinCandidate: Protein = { id, sequence: seq, affinity, stability };
 
@@ -92,7 +122,7 @@ export class Orchestrator extends EventEmitter {
                     stability_score: stability,
                     generation: this.generation,
                     novelty_status: status,
-                    file_path: `/vault/${id}.pdb`
+                    file_path: pdbPath || `/vault/${id}.pdb`
                 });
 
                 this.emit('new_candidate', { ...proteinCandidate, generation: this.generation, novelty_status: status });
@@ -100,7 +130,7 @@ export class Orchestrator extends EventEmitter {
 
                 // Check local best (Greedy selection for next parent)
                 // We primarily optimize Affinity, but ensure Stability is decent (< -5.0)
-                if (affinity < generationBestScore && stability < -4.0) {
+                if (affinity < generationBestScore && stability < -4.0 && affinity != 0) {
                     generationBestScore = affinity;
                     generationBest = proteinCandidate;
                 }
