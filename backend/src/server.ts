@@ -55,8 +55,8 @@ app.get('/api/pdb/:id', async (req, res) => {
         const protein = (await db.getRecentProteins(100)).find(p => p.id === id); // Ineffecient but works for demo
         if (protein && protein.file_path && !protein.file_path.includes('mock.pdb')) {
             // It's a real path?
-            // res.sendFile(protein.file_path);
-            // return;
+            res.sendFile(protein.file_path);
+            return;
         }
     } catch (e) { }
 

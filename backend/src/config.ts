@@ -2,7 +2,7 @@ import path from 'path';
 
 export const CONFIG = {
     // 'SIMULATION' | 'REAL'
-    MODE: process.env.REFINERY_MODE || 'SIMULATION',
+    MODE: process.env.REFINERY_MODE || 'REAL',
 
     // Paths to external tools (User must provide these for REAL mode)
     PATHS: {
