@@ -1,8 +1,38 @@
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Build
 dist
+build
+
+# Local env
 .env
-*.db
+.env.local
+.env.*.local
+
+# Logs
 *.log
-.DS_Store
-coverage
+npm-debug.log*
+
+# Editor
 .vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+
+# Server
+server/temp/
+server/ligands/
+server/node_modules/
+**/node_modules/
+*.log
+server_debug.log
