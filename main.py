@@ -4,6 +4,7 @@ import queue
 import time
 import os
 import shutil
+import requests 
 from tkinter import filedialog
 from datetime import datetime
 
@@ -44,38 +45,54 @@ class ProteinRefineryApp(ctk.CTk):
     def _build_sidebar(self):
         self.sidebar = ctk.CTkFrame(self, width=250, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(8, weight=1)
+        self.sidebar.grid_rowconfigure(9, weight=1)
 
         ctk.CTkLabel(self.sidebar, text="Configuration", font=ctk.CTkFont(size=20, weight="bold")).grid(row=0, column=0, padx=20, pady=(20, 10))
         
-        # Protein Upload
-        self.btn_upload = ctk.CTkButton(self.sidebar, text="📂 Upload Protein (PDB)", command=self._upload_pdb)
-        self.btn_upload.grid(row=1, column=0, padx=20, pady=10)
-        self.lbl_protein = ctk.CTkLabel(self.sidebar, text="No Protein", text_color="gray")
-        self.lbl_protein.grid(row=2, column=0, padx=20, pady=0)
+        # Protein Input (Upload OR Fetch)
+        ctk.CTkLabel(self.sidebar, text="Protein Input").grid(row=1, column=0, padx=20, pady=(10,0))
+        
+        # Row for Fetch
+        fetch_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        fetch_frame.grid(row=2, column=0, padx=20, pady=5)
+        self.entry_pdbid = ctk.CTkEntry(fetch_frame, placeholder_text="PDB ID (e.g. 1CRN)", width=120)
+        self.entry_pdbid.pack(side="left", padx=(0, 5))
+        self.btn_fetch = ctk.CTkButton(fetch_frame, text="Fetch", width=60, command=self._fetch_pdb)
+        self.btn_fetch.pack(side="left")
+        
+        self.btn_upload = ctk.CTkButton(self.sidebar, text="📂 Upload PDB File", command=self._upload_pdb)
+        self.btn_upload.grid(row=3, column=0, padx=20, pady=5)
+        
+        self.lbl_protein = ctk.CTkLabel(self.sidebar, text="No Protein Loaded", text_color="gray")
+        self.lbl_protein.grid(row=4, column=0, padx=20, pady=0)
 
         # Ligand Input
-        ctk.CTkLabel(self.sidebar, text="Ligand (SMILES)").grid(row=3, column=0, padx=20, pady=(10,0))
+        ctk.CTkLabel(self.sidebar, text="Ligand (SMILES)").grid(row=5, column=0, padx=20, pady=(10,0))
         self.entry_smiles = ctk.CTkEntry(self.sidebar, placeholder_text="Enter SMILES...")
         self.entry_smiles.insert(0, "CC(=O)Oc1ccccc1C(=O)O") # Aspirin
-        self.entry_smiles.grid(row=4, column=0, padx=20, pady=5)
+        self.entry_smiles.grid(row=6, column=0, padx=20, pady=5)
         
         self.btn_ligand = ctk.CTkButton(self.sidebar, text="Generate Ligand 3D", command=self._gen_ligand)
-        self.btn_ligand.grid(row=5, column=0, padx=20, pady=10)
+        self.btn_ligand.grid(row=7, column=0, padx=20, pady=10)
 
         # Params
-        ctk.CTkLabel(self.sidebar, text="Generations").grid(row=6, column=0, padx=20, pady=(10,0))
-        self.slider_gen = ctk.CTkSlider(self.sidebar, from_=1, to=20, number_of_steps=19)
-        self.slider_gen.set(3)
-        self.slider_gen.grid(row=7, column=0, padx=20, pady=5)
+        self.lbl_gen_title = ctk.CTkLabel(self.sidebar, text="Generations: 5")
+        self.lbl_gen_title.grid(row=8, column=0, padx=20, pady=(10,0))
+        
+        def update_gens(val):
+            self.lbl_gen_title.configure(text=f"Generations: {int(val)}")
+            
+        self.slider_gen = ctk.CTkSlider(self.sidebar, from_=1, to=20, number_of_steps=19, command=update_gens)
+        self.slider_gen.set(5)
+        self.slider_gen.grid(row=9, column=0, padx=20, pady=5)
 
         # Actions
         self.btn_start = ctk.CTkButton(self.sidebar, text="🚀 START EVOLUTION", fg_color="green", hover_color="darkgreen", command=self._start_evolution)
-        self.btn_start.grid(row=9, column=0, padx=20, pady=20)
+        self.btn_start.grid(row=11, column=0, padx=20, pady=20)
         
         self.toggle_chimera = ctk.CTkSwitch(self.sidebar, text="Auto ChimeraX")
         self.toggle_chimera.select()
-        self.toggle_chimera.grid(row=10, column=0, padx=20, pady=10)
+        self.toggle_chimera.grid(row=12, column=0, padx=20, pady=10)
 
     def _build_main_panel(self):
         self.main_panel = ctk.CTkFrame(self)
@@ -137,12 +154,36 @@ class ProteinRefineryApp(ctk.CTk):
         
         self.after(100, self._process_queues)
 
+    def _fetch_pdb(self):
+        pdb_id = self.entry_pdbid.get().strip()
+        if not pdb_id: return
+        if len(pdb_id) != 4:
+            self._log("Error: Invalid PDB ID format (must be 4 chars)", "error")
+            return
+            
+        self._log(f"Fetching PDB {pdb_id} from RCSB...", "info")
+        
+        def run():
+            try:
+                url = f"https://files.rcsb.org/download/{pdb_id.upper()}.pdb"
+                resp = requests.get(url, timeout=10)
+                if resp.ok:
+                    self.pdb_content = resp.text
+                    # Update UI in main thread (best effort via after or just assume thread safety for labels usually works in Tkinter mostly, or use queue if strict)
+                    # For safety we just log success, user can see.
+                    self._log(f"Successfully loaded {pdb_id.upper()}", "success")
+                else:
+                    self._log(f"Fetch Failed: {resp.status_code}", "error")
+            except Exception as e:
+                self._log(f"Fetch Error: {e}", "error")
+                
+        threading.Thread(target=run).start()
+
     def _upload_pdb(self):
         filename = filedialog.askopenfilename(filetypes=[("PDB Files", "*.pdb")])
         if filename:
             with open(filename, 'r') as f:
                 self.pdb_content = f.read()
-            self.lbl_protein.configure(text=os.path.basename(filename), text_color="white")
             self._log(f"Loaded PDB: {filename}")
 
     def _gen_ligand(self):
@@ -198,6 +239,10 @@ class ProteinRefineryApp(ctk.CTk):
                  
                  results = evo.run_generation(gen, job_log)
                  
+                 if not results:
+                     self._log("Warning: No results in this generation.")
+                     continue
+
                  # Analyze best
                  best = min(results, key=lambda x: x['affinity'])
                  if str(best['affinity']) < str(best_score) or gen == 0:
